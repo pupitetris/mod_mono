@@ -2,6 +2,14 @@
 #include "mod_mono_config.h"
 #endif
 
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#define _SCL_SECURE_NO_WARNINGS
+#define __strdup(str) _strdup(str)
+#else
+#define __strdup(str) strdup(str)
+#endif
+
 #include <ctype.h>
 
 #include "glib_compat.h"
@@ -53,12 +61,12 @@ gchar **g_strsplit (const gchar *string, const gchar *delimiter, int max_tokens)
 		return make_empty_vector ();
 	
 	if (!delimiter || !*delimiter) {
-		add_to_vector (&vector, size, strdup (string));
+		add_to_vector (&vector, size, __strdup (string));
 		return vector;
 	}
 	
 	if (strncmp (string, delimiter, delimiter_len) == 0) {
-		add_to_vector (&vector, size, strdup (""));
+		add_to_vector (&vector, size, __strdup (""));
 		size++;
 		string += delimiter_len;
 	} else
@@ -68,7 +76,7 @@ gchar **g_strsplit (const gchar *string, const gchar *delimiter, int max_tokens)
 		c = string;
 
 		if (*string == *delimiter && strncmp (string, delimiter, delimiter_len) == 0) {
-			token = strdup ("");
+			token = __strdup ("");
 			string += delimiter_len;
 		} else {
 			while (*string && (*string != *delimiter || strncmp (string, delimiter, delimiter_len) != 0))
@@ -81,7 +89,7 @@ gchar **g_strsplit (const gchar *string, const gchar *delimiter, int max_tokens)
 				if (strcmp (string, delimiter) != 0)
 					string += delimiter_len;
 			} else
-				token = strdup (c);
+				token = __strdup (c);
 		}
 
 		add_to_vector (&vector, size, token);
@@ -89,7 +97,7 @@ gchar **g_strsplit (const gchar *string, const gchar *delimiter, int max_tokens)
 	}
 
 	if (*string) {
-		add_to_vector (&vector, size, strdup (string));
+		add_to_vector (&vector, size, __strdup (string));
 		size++;
 	}
 	
@@ -145,7 +153,7 @@ gchar* g_strdup (const gchar *str)
 	if (!str)
 		return NULL;
 	
-	return (gchar*) strdup (str);
+	return (gchar*) __strdup (str);
 }
 
 void g_free (gpointer mem)
