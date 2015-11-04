@@ -2,7 +2,9 @@
 #define GLIB_COMPAT_H_
 
 #include <string.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>

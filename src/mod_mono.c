@@ -38,6 +38,10 @@
 #define STDOUT_NULL_DEFAULT 1
 #endif
 
+#ifdef _MSC_VER
+#define __PRETTY_FUNCTION__ __FUNCTION__
+#endif
+
 #include <stdlib.h>
 #include "mod_mono.h"
 #include "mono-io-portability.h"
@@ -180,7 +184,9 @@ static lock_mechanism lockMechanisms [] = {
 	LOCK_MECH (FLOCK),
 	LOCK_MECH (SYSVSEM),
 	LOCK_MECH (PROC_PTHREAD),
+#ifdef APR_HAS_POSIXSEM_SERIALIZE
 	LOCK_MECH (POSIXSEM),
+#endif
 	{"DEFAULT", APR_LOCK_DEFAULT, 1},
 	{NULL, 0, 0}
 };
@@ -305,6 +311,46 @@ set_auto_application (cmd_parms *cmd, void *mconfig, const char *value)
 	return NULL;
 }
 
+#ifdef WIN32
+static char *get_regkey_prefix(apr_pool_t *p) {
+	ap_regkey_t *key_mono;
+	ap_regkey_t *key_clr;
+	apr_status_t rv;
+	char *default_clr;
+	char *sdk_root;
+	rv = ap_regkey_open(&key_mono, AP_REGKEY_LOCAL_MACHINE, "SOFTWARE\\Novell\\Mono", APR_READ, p);
+	if (rv != APR_SUCCESS) {
+		return NULL;
+	}
+	rv = ap_regkey_value_get(&default_clr, key_mono, "DefaultCLR", p);
+	if (rv != APR_SUCCESS) {
+		ap_regkey_close(key_mono);
+		return NULL;
+	}
+	rv = ap_regkey_open(&key_clr, key_mono, default_clr, APR_READ, p);
+	ap_regkey_close(key_mono);
+	if (rv != APR_SUCCESS) {
+		return NULL;
+	}
+	rv = ap_regkey_value_get(&sdk_root, key_clr, "SdkInstallRoot", p);
+	if (rv != APR_SUCCESS) {
+		ap_regkey_close(key_clr);
+		return NULL;
+	}
+	ap_regkey_close(key_clr);
+	DEBUG_PRINT (1, "Registry key found. SdkInstallRoot: '%s'", sdk_root);
+	return sdk_root;
+}
+
+static char *get_mono_path(apr_pool_t *pool, char *default_value, const char *suffix) {
+	char *sdk_root = get_regkey_prefix(pool);
+	if ( sdk_root==NULL ) {
+		DEBUG_PRINT (1, "Registry key not found, defaulting setting to '%s'", default_value);
+		return default_value;
+	}
+	return apr_pstrcat(pool, sdk_root, suffix, NULL);
+}
+#endif
 
 static unsigned long
 parse_restart_time (const char *t)
@@ -384,7 +430,10 @@ get_restart_mode (xsp_data *xsp, const char *value)
 	}
 }
 
-inline static uid_t
+#ifndef WIN32
+inline
+#endif
+ static uid_t
 apache_get_userid ()
 {
 #ifdef HAVE_UNIXD
@@ -393,12 +442,17 @@ apache_get_userid ()
 #else
   return unixd_config.user_id;
 #endif
+#elif WIN32
+	return 0;
 #else
 	return ap_user_id;
 #endif
 }
 
-inline static gid_t
+#ifndef WIN32
+inline
+#endif
+ static gid_t
 apache_get_groupid ()
 {
 #ifdef HAVE_UNIXD
@@ -407,12 +461,17 @@ apache_get_groupid ()
 #else
   return unixd_config.group_id;
 #endif
+#elif WIN32
+	return -1;
 #else
 	return ap_group_id;
 #endif
 }
 
-inline static const char *
+#ifndef WIN32
+inline
+#endif
+ static const char *
 apache_get_username ()
 {
 #ifdef HAVE_UNIXD
@@ -421,6 +480,8 @@ apache_get_username ()
 #else 
 	return unixd_config.user_name;
 #endif
+#elif WIN32
+	return (char *) -1;
 #else
 	return ap_user_name;
 #endif
@@ -442,7 +503,7 @@ ensure_dashboard_initialized (module_cfg *config, xsp_data *xsp, apr_pool_t *p)
 {
 	apr_status_t rv;
 	mode_t old_umask;
-#if defined (APR_HAS_USER)
+#if defined (APR_HAS_USER) && !defined (WIN32)
 	apr_uid_t cur_uid;
 	apr_gid_t cur_gid;
 	int switch_back_to_root = 0;
@@ -457,8 +518,8 @@ ensure_dashboard_initialized (module_cfg *config, xsp_data *xsp, apr_pool_t *p)
 	if (!xsp->dashboard_mutex || !xsp->dashboard_shm)
 		xsp->dashboard = NULL;
 
-#if defined (APR_HAS_USER)
-	if (apache_get_userid () == -1 || apache_get_groupid () == -1) {
+#if defined (APR_HAS_USER) && !defined (WIN32)
+	if (apache_get_userid (p) == -1 || apache_get_groupid () == -1) {
 		ap_log_error (APLOG_MARK, APLOG_CRIT, STATUS_AND_SERVER,
 			      "The unix daemon module not initialized yet. Please make sure that "
 			      "your mod_mono module is loaded after the User/Group directives have "
@@ -474,7 +535,7 @@ ensure_dashboard_initialized (module_cfg *config, xsp_data *xsp, apr_pool_t *p)
 				      "setegid: unable to set effective group id to %u. %s",
 				      (unsigned)apache_get_groupid (), strerror (errno));
 
-		if (seteuid (apache_get_userid ()) == -1)
+		if (seteuid (apache_get_userid (p)) == -1)
 			ap_log_error (APLOG_MARK, APLOG_ALERT, STATUS_AND_SERVER,
 				      "seteuid: unable to set effective user id to %u. %s",
 				      (unsigned)apache_get_userid (), strerror (errno));
@@ -580,6 +641,7 @@ ensure_dashboard_initialized (module_cfg *config, xsp_data *xsp, apr_pool_t *p)
 				      strerror (errno));
 	}
 #endif
+	return;
 }
 
 static int
@@ -605,18 +667,26 @@ add_xsp_server (apr_pool_t *pool, const char *alias, module_cfg *config, int is_
 	server->filename = NULL;
 	server->umask_value = NULL;
 	server->run_xsp = "True";
+#ifndef WIN32
 	/* (Obsolete) server->executable_path = EXECUTABLE_PATH; */
 	server->path = NULL;
 	server->server_path = NULL;
+	server->listen_port = NULL;
+	server->wapidir = WAPIDIR;
+#else
+	/* (Obsolete) server->executable_path = get_mono_path(pool, EXECUTABLE_PATH, "/bin/mono.exe"); */
+	server->path = NULL;
+	server->server_path = get_mono_path(pool, MODMONO_SERVER_PATH, "/bin/mod-mono-server.bat");
+	server->listen_port = apr_psprintf (pool, "%d", atoi(LISTEN_PORT) + config->nservers);
+	apr_env_get(&server->wapidir, "TEMP", pool);
+#endif
 	server->target_framework = NULL;
 	server->applications = NULL;
-	server->wapidir = WAPIDIR;
 	server->document_root = DOCUMENT_ROOT;
 	server->appconfig_file = APPCONFIG_FILE;
 	if (is_default)
 		server->appconfig_dir = APPCONFIG_DIR;
 
-	server->listen_port = NULL;
 	server->listen_address = NULL;
 	server->listen_backlog = NULL;
 	server->minthreads = NULL;
@@ -1316,13 +1386,20 @@ static apr_status_t
 try_connect (xsp_data *conf, apr_socket_t **sock, apr_int32_t family, apr_pool_t *pool)
 {
 	char *error;
+#ifndef WIN32
 	struct sockaddr_un unix_address;
 	struct sockaddr *ptradd;
+#endif
 	char *fn = NULL;
 	char *la = NULL;
 	int err;
 
 	if (conf->listen_port == NULL) {
+#ifdef WIN32
+		ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
+					  "mod_mono: MonoUnixSocket not supported under windows. MonoListenPort must be used instead.");
+		return -2; /* Unrecoverable */
+#else
 		apr_os_sock_t sock_fd;
 
 		apr_os_sock_get (&sock_fd, *sock);
@@ -1336,6 +1413,7 @@ try_connect (xsp_data *conf, apr_socket_t **sock, apr_int32_t family, apr_pool_t
 		ptradd = (struct sockaddr *) &unix_address;
 		if (connect (sock_fd, ptradd, sizeof (unix_address)) != -1)
 			return APR_SUCCESS;
+#endif
 	} else {
 		apr_status_t rv;
 		apr_sockaddr_t *sa;
@@ -1359,9 +1437,6 @@ try_connect (xsp_data *conf, apr_socket_t **sock, apr_int32_t family, apr_pool_t
 
 	err = errno;
 	switch (err) {
-		case ENOENT:
-		case ECONNREFUSED:
-			return -1; /* Can try to launch mod-mono-server */
 		case EPERM:
 			error = strerror (err);
 			if (conf->listen_port == NULL)
@@ -1376,6 +1451,8 @@ try_connect (xsp_data *conf, apr_socket_t **sock, apr_int32_t family, apr_pool_t
 			apr_socket_close (*sock);
 			return -2; /* Unrecoverable */
 		default:
+		if ( APR_STATUS_IS_ECONNREFUSED(errno) || APR_STATUS_IS_ENOENT(errno) )
+			return -1; /* Can try to launch mod-mono-server */
 			error = strerror (err);
 			if (conf->listen_port == NULL)
 				ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
@@ -1423,7 +1500,11 @@ setenv_to_putenv (apr_pool_t *pool, char *name, char *value)
 }
 
 #	else
-#	error No setenv or putenv found!
+#		ifdef WIN32
+#			define SETENV(pool, name, value) apr_env_set (name, value, pool)
+#		else
+#		error No setenv or putenv found!
+#endif
 #endif
 #endif
 
@@ -1458,7 +1539,9 @@ set_environment_variables (apr_pool_t *pool, char *environment_variables)
 
 static void
 set_process_limits2 (int resource, int max, char *name) {
-	struct rlimit limit;
+#ifdef HAVE_SETRLIMIT
+ 	struct rlimit limit;
+#endif
 
 	if (max > 0) {
 #ifdef HAVE_SETRLIMIT
@@ -1515,6 +1598,192 @@ configure_stdout (char null_stdout)
 #endif
 		dup2 (2, 1);
 }
+
+#ifdef WIN32
+static void
+fork_mod_mono_server (apr_pool_t *pool, xsp_data *config)
+{
+	apr_status_t rc;
+ 	apr_procattr_t *procattr;
+	apr_proc_t *procnew;
+	const int MAXARGS = 21;
+	char *argv [21];
+	int argi;
+	char *path;
+	char *tmp;
+	char *serverdir;
+	char *wapidir;
+	int max_memory = 0;
+	int max_cpu_time = 0;
+	char is_master;
+
+	/* Running mod-mono-server not requested */
+	if (!strcasecmp (config->run_xsp, "false")) {
+		DEBUG_PRINT (1, "Not running mod-mono-server: %s", config->run_xsp);
+		ap_log_error (APLOG_MARK, APLOG_DEBUG, STATUS_AND_SERVER,
+				"Not running mod-mono-server.exe");
+		return;
+	}
+
+	is_master = (0 == strcmp ("XXGLOBAL", config->alias));
+	/*
+	 * At least one of MonoApplications, MonoApplicationsConfigFile or
+	 * MonoApplicationsConfigDir must be specified, except for the 'global'
+	 * instance that will be used to create applications on demand.
+	 */
+	DEBUG_PRINT (1, "Applications: %s", config->applications);
+	DEBUG_PRINT (1, "Config file: %s", config->appconfig_file);
+	DEBUG_PRINT (1, "Config dir.: %s", config->appconfig_dir);
+	if (!is_master && config->applications == NULL && config->appconfig_file == NULL &&
+		config->appconfig_dir == NULL) {
+		ap_log_error (APLOG_MARK, APLOG_ERR,
+				STATUS_AND_SERVER,
+				"Not running mod-mono-server.exe because no MonoApplications, "
+				"MonoApplicationsConfigFile or MonoApplicationConfigDir specified.");
+		return;
+	}
+
+	/* Only one of MonoUnixSocket and MonoListenPort. */
+	DEBUG_PRINT (1, "Listen port: %s", config->listen_port);
+	if (config->listen_port != NULL && config->filename != NULL) {
+		ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
+				"Not running mod-mono-server.exe because both MonoUnixSocket and "
+				"MonoListenPort specified.");
+		return;
+	}
+
+	/* MonoListenAddress must be used together with MonoListenPort */
+	DEBUG_PRINT (1, "Listen address: %s", config->listen_address);
+	if (config->listen_port == NULL && config->listen_address != NULL) {
+		ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
+			"Not running mod-mono-server.exe because MonoListenAddress "
+			"is present and there is no MonoListenPort.");
+		return;
+	}
+	if (config->max_memory != NULL)
+		max_memory = atoi (config->max_memory);
+
+	if (config->max_cpu_time != NULL)
+		max_cpu_time = atoi (config->max_cpu_time);
+
+	set_environment_variables (pool, config->env_vars);
+
+	tmp = getenv ("PATH");
+	DEBUG_PRINT (1, "PATH: %s", tmp);
+	if (tmp == NULL)
+		tmp = "";
+
+	serverdir = get_directory (pool, config->server_path);
+	DEBUG_PRINT (1, "serverdir: %s", serverdir);
+	path = apr_pcalloc (pool, strlen (tmp) + strlen (serverdir) + 2);
+	sprintf (path, "%s" DIRECTORY_SEPARATOR "%s", serverdir, tmp);
+
+	DEBUG_PRINT (1, "PATH after: %s", path);
+	SETENV (pool, "PATH", path);
+	if (config->path != NULL)
+		SETENV (pool, "MONO_PATH", config->path);
+	wapidir = apr_pcalloc (pool, strlen (config->wapidir) + 5 + 2);
+	sprintf (wapidir, "%s/%s", config->wapidir, ".wapi");
+	apr_dir_make (wapidir, (APR_UREAD | APR_UWRITE | APR_UEXECUTE), pool);
+	if (chmod (wapidir, 0700) != 0 && (errno == EPERM || errno == EACCES)) {
+		ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
+				"%s: %s", wapidir, strerror (errno));
+		exit (1);
+	}
+
+	SETENV (pool, "MONO_SHARED_DIR", config->wapidir);
+	if (config->debug && !strcasecmp (config->debug, "True"))
+		SETENV (pool, "MONO_OPTIONS", "--debug");
+
+	memset (argv, 0, sizeof (char *) * MAXARGS);
+	argi = 0;
+
+	argv [argi++] = config->server_path;
+	if (config->listen_port != NULL) {
+		char *la;
+
+		la = config->listen_address;
+		la = la ? la : LISTEN_ADDRESS;
+		argv [argi++] = "--address";
+		argv [argi++] = la;
+		argv [argi++] = "--port";
+		argv [argi++] = config->listen_port;
+	} else {
+		char *fn;
+
+		fn = config->filename;
+		if (fn == NULL)
+			fn = get_default_socket_name (pool, config->alias, SOCKET_FILE);
+
+		argv [argi++] = "--filename";
+		argv [argi++] = fn;
+	}
+
+	if (config->applications != NULL) {
+		argv [argi++] = "--applications";
+		argv [argi++] = config->applications;
+	}
+
+	argv [argi++] = "--nonstop";
+	if (config->document_root != NULL) {
+		argv [argi++] = "--root";
+		argv [argi++] = config->document_root;
+	}
+
+	if (config->appconfig_file != NULL) {
+		argv [argi++] = "--appconfigfile";
+		argv [argi++] = config->appconfig_file;
+	}
+
+	if (config->appconfig_dir != NULL) {
+		argv [argi++] = "--appconfigdir";
+		argv [argi++] = config->appconfig_dir;
+	}
+
+	if (is_master)
+		argv [argi++] = "--master";
+	/*
+	* The last element in the argv array must always be NULL
+	* to terminate the array for execv().
+	*
+	* Any new argi++'s that are added here must also increase
+	* the maxargs argument at the top of this method to prevent
+	* array out-of-bounds. 
+	*/
+
+	ap_log_error (APLOG_MARK, APLOG_DEBUG, STATUS_AND_SERVER,
+			"running '%s %s %s %s %s %s %s %s %s %s %s %s %s'",
+			argv [0], argv [1], argv [2], argv [3], argv [4],
+			argv [5], argv [6], argv [7], argv [8], 
+			argv [9], argv [10], argv [11], argv [12]);
+
+	if (((rc = apr_procattr_create(&procattr, pool)) != APR_SUCCESS) ||
+		((rc = apr_procattr_io_set(procattr, APR_FULL_BLOCK, APR_FULL_BLOCK, APR_FULL_BLOCK)) != APR_SUCCESS) || 
+		((rc = apr_procattr_dir_set(procattr, ap_make_dirstr_parent(pool, argv[0]))) != APR_SUCCESS) ||
+		((rc = apr_procattr_cmdtype_set(procattr, APR_PROGRAM_ENV)) != APR_SUCCESS)) {
+		/* Something bad happened, give up and go away. */
+		ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
+			"Failed running '%s %s %s %s %s %s %s %s %s %s %s %s %s'. Reason: %s",
+			argv [0], argv [1], argv [2], argv [3], argv [4],
+			argv [5], argv [6], argv [7], argv [8],
+			argv [9], argv [10], argv [11], argv [12],
+			strerror (errno));
+	} else {
+		procnew = apr_pcalloc(pool, sizeof(*procnew));
+		rc = apr_proc_create(procnew, argv[0], (const char **)argv, NULL, procattr, pool);
+		if (rc == APR_SUCCESS) {
+			apr_pool_note_subprocess(pool, procnew, APR_KILL_ALWAYS);
+		} else {
+			ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
+				"Failed running '%s %s %s %s %s %s %s %s %s %s %s %s %s'. Reason: %s",
+				argv [0], argv [1], argv [2], argv [3], argv [4],
+				argv [5], argv [6], argv [7], argv [8],
+				argv [9], argv [10], argv [11], argv [12],
+				strerror (errno));
+		}
+	}
+}
+#else
 
 static void
 fork_mod_mono_server (apr_pool_t *pool, xsp_data *config)
@@ -1819,6 +2088,7 @@ fork_mod_mono_server (apr_pool_t *pool, xsp_data *config)
 		      strerror (errno));
 	exit (1);
 }
+#endif
 
 static apr_status_t
 setup_socket (apr_socket_t **sock, xsp_data *conf, apr_pool_t *pool)
@@ -2138,6 +2408,8 @@ inline static void set_uri_item (uri_item* list, int nitems, request_rec* r, int
 static int
 increment_active_requests (xsp_data *conf, request_rec *r, int32_t id)
 {
+	int retries = 20;
+
 	/* This function tries to increment the counters that limit
 	 * the number of simultaenous requests being processed. It
 	 * assumes that the mutex is held when the function is called
@@ -2165,8 +2437,6 @@ increment_active_requests (xsp_data *conf, request_rec *r, int32_t id)
 	 * allowed concurrent requests, then we have to hold the request
 	 * for a bit of time. */
 	if (max_active_requests > 0 && conf->dashboard->active_requests >= max_active_requests) {
-		int retries = 20;
-
 		/* We need to wait until the active requests
 		 * go below the maximum. */
 

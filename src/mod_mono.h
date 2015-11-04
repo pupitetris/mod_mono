@@ -61,6 +61,18 @@
 /* KEEP IN SYNC WITH ModMonoRequest!! */
 #define PROTOCOL_VERSION 9
 
+#ifdef WIN32
+#include <apr_env.h>
+#include <ap_regkey.h>
+#include <limits.h>
+typedef __int32 int32_t;
+typedef unsigned __int32 uint32_t;
+typedef unsigned __int64 uint64_t;
+typedef unsigned __int32 mode_t;
+#define HAVE_APR_SOCKET_CONNECT
+#define alloca(x) _alloca(x)
+#endif
+
 #define STATCODE_AND_SERVER(__code__) __code__, NULL
 #include <http_protocol.h>
 #include <http_request.h>
@@ -98,7 +110,14 @@
 #define APPCONFIG_DIR		NULL
 #define SOCKET_FILE		"/tmp/mod_mono_server"
 #define LISTEN_ADDRESS		"127.0.0.1"
+
+#ifndef WIN32
 #define DASHBOARD_FILE		"/tmp/mod_mono_dashboard"
+#else
+#define DASHBOARD_FILE getenv ("TEMP"), "/mod_mono_dashboard"
+#define LISTEN_PORT		"2000"
+#endif
+
 #define GLOBAL_SERVER_NAME	"XXGLOBAL"
 #define MAX_ACTIVE_REQUESTS	0
 #define MAX_WAITING_REQUESTS	150
@@ -194,12 +213,27 @@ static char UNUSED *cmdNames [] = {
 
 /* Debugging */
 #ifdef DEBUG
+#ifdef WIN32
+#define DEBUG_PRINT debug_print
+static void debug_print(int a, char *format,...) {
+	if (a >= DEBUG_LEVEL) {
+		char buffer[1024];
+		va_list args;
+		errno = 0;
+		va_start (args, format);
+		apr_vsnprintf (buffer, sizeof(buffer), format, args);
+		ap_log_error (APLOG_MARK, APLOG_WARNING, STATUS_AND_SERVER, buffer);
+		va_end (args);
+	}
+}
+#else
 #define DEBUG_PRINT(a,...) \
 	if (a >= DEBUG_LEVEL) { \
 		errno = 0; \
 		ap_log_error (APLOG_MARK, APLOG_WARNING, STATUS_AND_SERVER, \
 				__VA_ARGS__); \
 	}
+#endif /* WIN32 */
 #else
 #define DEBUG_PRINT dummy_print
 static void UNUSED
