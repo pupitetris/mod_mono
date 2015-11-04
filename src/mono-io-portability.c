@@ -3,7 +3,9 @@
 #endif
 
 #include <string.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #include <stdlib.h>
 #include <errno.h>
 #include "mono-io-portability.h"

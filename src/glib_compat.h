@@ -2,7 +2,7 @@
 #define GLIB_COMPAT_H_
 
 #include <string.h>
-#ifndef WIN32
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <stdlib.h>
