@@ -204,7 +204,7 @@ LINK32_OBJS= \
 
 !ENDIF 
 
-SOURCE=.\src\mod_mono.c
+SOURCE=.\src\mod_mono.c .\src\glib_compat.c .\src\mono-io-portability.c
 
 "$(INTDIR)\mod_mono.obj" : $(SOURCE) "$(INTDIR)" ".\include\mod_mono_config.h"
 	$(CPP) $(CPP_PROJ) $(SOURCE)
