@@ -739,7 +739,7 @@ add_xsp_server (apr_pool_t *pool, const char *alias, module_cfg *config, int is_
 }
 
 static int
-handle_restart_config (char *ptr, unsigned long offset, const char *value)
+handle_restart_config (char *ptr, uintptr_t offset, const char *value)
 {
 	xsp_data *xsp = (xsp_data*)ptr;
 
@@ -776,10 +776,10 @@ store_config_xsp (cmd_parms *cmd, void *notused, const char *first, const char *
 	int idx;
 	module_cfg *config;
 	char *ptr;
-	unsigned long offset;
+	uintptr_t offset;
 	int is_default;
 
-	offset = (unsigned long) cmd->info;
+	offset = (uintptr_t) cmd->info;
 	DEBUG_PRINT (0, "store_config %lu '%s' '%s'", offset, first, second);
 	config = ap_get_module_config (cmd->server->module_config, &mono_module);
 	if (second == NULL) {
@@ -910,11 +910,11 @@ create_mono_server_config (apr_pool_t *p, server_rec *s)
 }
 
 static void
-request_send_response_from_memory (request_rec *r, char *byteArray, int size, int noFlush)
+request_send_response_from_memory (request_rec *r, char *byteArray, size_t size, int noFlush)
 {
 	DEBUG_PRINT (0, "sending from memory with%s flush", noFlush ? "out" : "");
 
-	ap_rwrite (byteArray, size, r);
+	ap_rwrite (byteArray, (int) size, r);
 	if (!noFlush) {
 		DEBUG_PRINT (0, "flushing");
 		ap_rflush (r);
@@ -994,7 +994,7 @@ setup_client_block (request_rec *r)
 	return ap_setup_client_block (r, REQUEST_CHUNKED_DECHUNK);
 }
 
-static int
+static apr_size_t
 write_data (apr_socket_t *sock, const void *str, apr_size_t size)
 {
 	apr_size_t prevsize = size;
@@ -1008,7 +1008,7 @@ write_data (apr_socket_t *sock, const void *str, apr_size_t size)
 	return (prevsize == size) ? size : -1;
 }
 
-static int
+static apr_size_t
 read_data (apr_socket_t *sock, void *ptr, apr_size_t size)
 {
 	apr_status_t statcode;
@@ -1022,11 +1022,12 @@ read_data (apr_socket_t *sock, void *ptr, apr_size_t size)
 }
 
 static char *
-read_data_string (apr_pool_t *pool, apr_socket_t *sock, char **ptr, int32_t *size)
+read_data_string (apr_pool_t *pool, apr_socket_t *sock, char **ptr, size_t *size)
 {
-	int l, count;
+	int l;
+	apr_size_t count;
 	char *buf;
-	apr_status_t result;
+	apr_size_t result;
 
 	if (read_data (sock, &l, sizeof (int32_t)) == -1)
 		return NULL;
@@ -1083,7 +1084,7 @@ send_entire_file (request_rec *r, const char *filename, int *result, xsp_data *x
 		goto finish;
 	}
 
-	st = ap_send_fd (file, r, 0, info.size, &nbytes);
+	st = ap_send_fd (file, r, 0, (apr_size_t) info.size, &nbytes);
 	apr_file_close (file);
 	if (nbytes < 0 || st != APR_SUCCESS) {
 		DEBUG_PRINT (2, "SEND FAILED");
@@ -1103,8 +1104,7 @@ static int
 send_response_headers (request_rec *r, apr_socket_t *sock)
 {
 	char *str;
-	int32_t size;
-	int pos, len;
+	size_t size, pos, len;
 	char *name;
 	char *value;
 
@@ -1177,12 +1177,12 @@ get_client_block_buffer (request_rec *r, uint32_t requested_size, uint32_t *actu
 static int
 do_command (int command, apr_socket_t *sock, request_rec *r, int *result, xsp_data *xsp)
 {
-	int32_t size;
+	size_t size;
 	char *str;
 	const char *cstr;
 	int32_t i;
 	uint32_t actual_size;
-	int status = 0;
+	size_t status = 0;
 	apr_pool_t *temp_pool;
 	char *error_message = NULL;
 
@@ -2150,7 +2150,7 @@ write_string_to_buffer (char *buffer, int offset, const char *str, size_t str_le
 
 	buffer += offset;
 	if (str && !str_length) {
-		tmp = strlen (str);
+		tmp = (int) strlen (str);
 		le = LE_FROM_INT (tmp);
 	} else
 		tmp = (uint32_t)str_length;
@@ -2185,8 +2185,8 @@ get_table_send_size (apr_table_t *table)
 	do {
 		if (t_elt->val != NULL) {
 			size += sizeof (int32_t) * 2;
-			size += strlen (t_elt->key);
-			size += strlen (t_elt->val);
+			size += (int32_t) strlen (t_elt->key);
+			size += (int32_t) strlen (t_elt->val);
 		}
 		t_elt++;
 	} while (t_elt < t_end);
@@ -2194,14 +2194,14 @@ get_table_send_size (apr_table_t *table)
 	return size;
 }
 
-static int32_t
+static uintptr_t
 write_table_to_buffer (char *buffer, apr_table_t *table)
 {
 	const apr_array_header_t *elts;
 	const apr_table_entry_t *t_elt;
 	const apr_table_entry_t *t_end;
 	char *ptr;
-	int32_t count = 0, size;
+	size_t count = 0, size;
 	char *countLocation = buffer + sizeof (int32_t);
 	char *sizeLocation = buffer;
 
@@ -2254,9 +2254,9 @@ send_table (apr_pool_t *pool, apr_table_t *table, apr_socket_t *sock)
 static int
 send_initial_data (request_rec *r, apr_socket_t *sock, char auto_app)
 {
-	uint32_t           i;
+	size_t           i;
 	char              *str, *ptr;
-	uint32_t           size;
+	size_t           size;
 	server_rec        *s = r->server;
 	initial_data_info  info;
 
@@ -2322,7 +2322,7 @@ send_initial_data (request_rec *r, apr_socket_t *sock, char auto_app)
 		ptr = str = apr_pcalloc (r->pool, size);
 	*ptr++ = (char)PROTOCOL_VERSION; /* version. Keep in sync with ModMonoRequest. */
 	i = LE_FROM_INT (size) - (1 + sizeof (size)); /* Subtract the command the data size from the buffer size */
-	memcpy (ptr, &i, sizeof (i));
+	memcpy (ptr, &i, sizeof (uint32_t));
 	ptr += sizeof (int32_t);
 	ptr += write_string_to_buffer (ptr, 0, r->method, info.method_len);
 	if (s != NULL)
@@ -2336,7 +2336,7 @@ send_initial_data (request_rec *r, apr_socket_t *sock, char auto_app)
 	ptr += write_string_to_buffer (ptr, 0, r->connection->local_ip, info.local_ip_len);
 	i = request_get_server_port (r);
 	i = LE_FROM_INT (i);
-	memcpy (ptr, &i, sizeof (i));
+	memcpy (ptr, &i, sizeof (uint32_t));
 	ptr += sizeof (int32_t);
 #if defined(APACHE24)
 	ptr += write_string_to_buffer (ptr, 0, r->connection->client_ip, info.remote_ip_len);
@@ -2345,7 +2345,7 @@ send_initial_data (request_rec *r, apr_socket_t *sock, char auto_app)
 #endif
 	i = connection_get_remote_port (r->connection);
 	i = LE_FROM_INT (i);
-	memcpy (ptr, &i, sizeof (i));
+	memcpy (ptr, &i, sizeof (uint32_t));
 	ptr += sizeof (int32_t);
 	ptr += write_string_to_buffer (ptr, 0, info.remote_name, info.remote_name_len);
 	ptr += write_table_to_buffer (ptr, r->headers_in);
@@ -2375,8 +2375,8 @@ inline static void clear_uri_item (uri_item* list, int nitems, int32_t id)
 inline static void set_uri_item (uri_item* list, int nitems, request_rec* r, int32_t id)
 {
 	int i;
-	int uri_len = 0;
-	int args_len;
+	size_t uri_len = 0;
+	size_t args_len;
 
 	for (i = 0; i < nitems; i++) {
 		if (list [i].id != -1)
@@ -2526,7 +2526,7 @@ mono_execute_request (request_rec *r, char auto_app)
 	apr_status_t rv2;
 	int command = -1;
 	int result = FALSE;
-	apr_status_t input;
+	size_t input;
 	int status = 0;
 	module_cfg *config;
 	per_dir_config *dir_config = NULL;
@@ -2538,11 +2538,11 @@ mono_execute_request (request_rec *r, char auto_app)
 	int32_t id = -1;
 
 	config = ap_get_module_config (r->server->module_config, &mono_module);
-	DEBUG_PRINT (1, "config = 0x%lx", (unsigned long)config);
+	DEBUG_PRINT (1, "config = 0x%lx", config);
 	if (r->per_dir_config != NULL)
 		dir_config = ap_get_module_config (r->per_dir_config, &mono_module);
 
-	DEBUG_PRINT (1, "dir_config = 0x%lx", (unsigned long)dir_config);
+	DEBUG_PRINT (1, "dir_config = 0x%lx", dir_config);
 	if (dir_config != NULL && dir_config->alias != NULL)
 		idx = search_for_alias (dir_config->alias, config);
 	else
@@ -2851,7 +2851,7 @@ start_xsp (module_cfg *config, int is_restart, char *alias)
 
 	for (i = 0; i < config->nservers; i++) {
 		xsp = &config->servers [i];
-		DEBUG_PRINT (0, "config->servers [%u]->dashboard == 0x%lX", i, (unsigned long)xsp->dashboard);
+		DEBUG_PRINT (0, "config->servers [%u]->dashboard == 0x%lX", i, xsp->dashboard);
 		if (xsp->run_xsp && !strcasecmp (xsp->run_xsp, "false"))
 			continue;
 
@@ -2862,7 +2862,7 @@ start_xsp (module_cfg *config, int is_restart, char *alias)
 		if (IS_MASTER (xsp) && config->auto_app == FALSE)
 			continue;
 
-		DEBUG_PRINT (1, "xsp address 0x%lx, dashboard 0x%lx", (unsigned long)xsp, (unsigned long)xsp->dashboard);
+		DEBUG_PRINT (1, "xsp address 0x%lx, dashboard 0x%lx", xsp, xsp->dashboard);
 		if (!xsp->dashboard)
 			ensure_dashboard_initialized (config, xsp, pconf);
 
