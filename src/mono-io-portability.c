@@ -3,9 +3,29 @@
 #endif
 
 #include <string.h>
+
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#else
+
+#ifndef F_OK
+#define F_OK 0
 #endif
+
+#ifndef R_OK
+#define R_OK 4
+#endif
+
+#ifndef W_OK
+#define W_OK 2
+#endif
+
+#ifndef X_OK
+#define X_OK 1
+#endif
+
+#endif /* HAVE_UNISTD_H */
+
 #include <stdlib.h>
 #include <errno.h>
 #include "mono-io-portability.h"
@@ -95,7 +115,7 @@ gchar *mono_portability_find_file (int portability_level, const gchar *pathname,
 	if (IS_PORTABILITY_DRIVE &&
 	    g_ascii_isalpha (new_pathname[0]) &&
 	    (new_pathname[1] == ':')) {
-		int len = strlen (new_pathname);
+		size_t len = strlen (new_pathname);
 
 		g_memmove (new_pathname, new_pathname+2, len - 2);
 		new_pathname[len - 2] = '\0';
