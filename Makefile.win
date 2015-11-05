@@ -112,6 +112,8 @@ NULL=nul
 CLEAN :
 	-@erase ".\include\mod_mono_config.h"
 	-@erase "$(INTDIR)\mod_mono.obj"
+	-@erase "$(INTDIR)\glib_compat.obj"
+	-@erase "$(INTDIR)\mono-io-portability.obj"
 	-@erase "$(INTDIR)\mod_mono_src.idb"
 	-@erase "$(INTDIR)\mod_mono_src.pdb"
 	-@erase "$(OUTDIR)\mod_mono.exp"
@@ -127,7 +129,7 @@ ALL : "$(OUTDIR)\mod_mono.so"
     if not exist "$(OUTDIR)/$(NULL)" mkdir "$(OUTDIR)"
 
 CPP=cl.exe
-CPP_PROJ=/nologo /MD /W3 /Zi /O2 /I "./include" /I "$(APACHE_INCLUDE)" /I "$(APACHE_APR_INCLUDE)" /I "$(APACHE_APRUTIL_INCLUDE)" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "$(APACHEVER)" /D "HAVE_CONFIG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\mod_mono_src" /FD /c
+CPP_PROJ=/nologo /MD /W3 /Zi /O2 /I "./include" /I "./src/win32" /I "$(APACHE_INCLUDE)" /I "$(APACHE_APR_INCLUDE)" /I "$(APACHE_APRUTIL_INCLUDE)" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "$(APACHEVER)" /D "HAVE_CONFIG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\mod_mono_src" /FD /c
 !IF "$(APACHEVER)" == "APACHE22" || "$(APACHEVER)" == "APACHE24"
 CPP_PROJ=$(CPP_PROJ) /D "APACHE2"
 !ENDIF
@@ -144,11 +146,15 @@ LINK32_FLAGS=kernel32.lib /nologo /subsystem:windows /dll /incremental:no /pdb:"
 !IF "$(APACHEVER)" == "APACHE22" || "$(APACHEVER)" == "APACHE24"
 LINK32_OBJS= \
 	"$(INTDIR)\mod_mono.obj" \
+	"$(INTDIR)\glib_compat.obj" \
+	"$(INTDIR)\mono-io-portability.obj" \
 	"$(APACHE_APR_LIB)\libapr-1.lib" \
 	"$(APACHE_LIB)\libhttpd.lib"
 !ELSE
 LINK32_OBJS= \
 	"$(INTDIR)\mod_mono.obj" \
+	"$(INTDIR)\glib_compat.obj" \
+	"$(INTDIR)\mono-io-portability.obj" \
 	"$(APACHE_APR_LIB)\libapr.lib" \
 	"$(APACHE_LIB)\libhttpd.lib"
 !ENDIF
@@ -169,7 +175,7 @@ ALL : "$(OUTDIR)\mod_mono.so"
     if not exist "$(OUTDIR)/$(NULL)" mkdir "$(OUTDIR)"
 
 CPP=cl.exe
-CPP_PROJ=/nologo /MD /W3 /GX /Zi /Od /I "./include" /I "$(APACHE_INCLUDE)" /I "$(APACHE_APR_INCLUDE)" /I "$(APACHE_APRUTIL_INCLUDE)" /D "DEBUG" /D "WIN32" /D "_WINDOWS" /D "$(APACHEVER)" /D "HAVE_CONFIG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\mod_mono_src" /FD /c 
+CPP_PROJ=/nologo /MD /W3 /GX /Zi /Od /I "./include" /I "./src/win32" /I "$(APACHE_INCLUDE)" /I "$(APACHE_APR_INCLUDE)" /I "$(APACHE_APRUTIL_INCLUDE)" /D "DEBUG" /D "WIN32" /D "_WINDOWS" /D "$(APACHEVER)" /D "HAVE_CONFIG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\mod_mono_src" /FD /c 
 !IF "$(APACHEVER)" == "APACHE22" || "$(APACHEVER)" == "APACHE24"
 CPP_PROJ=$(CPP_PROJ) /D "APACHE2"
 !ENDIF
@@ -187,11 +193,15 @@ LINK32_FLAGS=kernel32.lib /nologo /subsystem:windows /dll /incremental:no /pdb:"
 !IF "$(APACHEVER)" == "APACHE22" || "$(APACHEVER)" == "APACHE24"
 LINK32_OBJS= \
 	"$(INTDIR)\mod_mono.obj" \
+	"$(INTDIR)\glib_compat.obj" \
+	"$(INTDIR)\mono-io-portability.obj" \
 	"$(APACHE_APR_LIB)\libapr-1.lib" \
 	"$(APACHE_LIB)\libhttpd.lib"
 !ELSE
 LINK32_OBJS= \
 	"$(INTDIR)\mod_mono.obj" \
+	"$(INTDIR)\glib_compat.obj" \
+	"$(INTDIR)\mono-io-portability.obj" \
 	"$(APACHE_APR_LIB)\libapr.lib" \
 	"$(APACHE_LIB)\libhttpd.lib"
 !ENDIF
