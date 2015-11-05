@@ -65,12 +65,12 @@
 #include <apr_env.h>
 #include <ap_regkey.h>
 #include <limits.h>
+#include <malloc.h>
 typedef __int32 int32_t;
 typedef unsigned __int32 uint32_t;
 typedef unsigned __int64 uint64_t;
 typedef unsigned __int32 mode_t;
 #define HAVE_APR_SOCKET_CONNECT
-#define alloca(x) _alloca(x)
 #endif
 
 #define STATCODE_AND_SERVER(__code__) __code__, NULL
