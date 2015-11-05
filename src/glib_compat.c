@@ -17,7 +17,7 @@
 #define ASCII_TOLOWER(_ch_) (isascii ((int)(_ch_)) && isalpha ((int)(_ch_))) ? tolower ((_ch_)) : (_ch_)
 
 static gchar *
-g_strndup (const char *str, int n)
+g_strndup (const char *str, size_t n)
 {
 #ifdef HAVE_STRNDUP
 	return strndup (str, n);
@@ -52,7 +52,7 @@ static gchar **make_empty_vector ()
 gchar **g_strsplit (const gchar *string, const gchar *delimiter, int max_tokens)
 {
 	gchar **vector = NULL;
-	int delimiter_len = strlen (delimiter);
+	size_t delimiter_len = strlen (delimiter);
 	int size = 1;
 	const gchar *c;
 	gchar *token;
