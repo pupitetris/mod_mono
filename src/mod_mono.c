@@ -312,6 +312,21 @@ set_auto_application (cmd_parms *cmd, void *mconfig, const char *value)
 }
 
 #ifdef WIN32
+
+#ifdef DEBUG
+static void debug_print(int a, char *format,...) {
+	if (a >= DEBUG_LEVEL) {
+		char buffer[1024];
+		va_list args;
+		errno = 0;
+		va_start (args, format);
+		apr_vsnprintf (buffer, sizeof(buffer), format, args);
+		ap_log_error (APLOG_MARK, APLOG_WARNING, STATUS_AND_SERVER, buffer);
+		va_end (args);
+	}
+}
+#endif /* DEBUG */
+
 static char *get_regkey_prefix(apr_pool_t *p) {
 	ap_regkey_t *key_mono;
 	ap_regkey_t *key_clr;
@@ -350,7 +365,7 @@ static char *get_mono_path(apr_pool_t *pool, char *default_value, const char *su
 	}
 	return apr_pstrcat(pool, sdk_root, suffix, NULL);
 }
-#endif
+#endif /* WIN32 */
 
 static unsigned long
 parse_restart_time (const char *t)

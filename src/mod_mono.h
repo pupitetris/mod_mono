@@ -215,17 +215,7 @@ static char UNUSED *cmdNames [] = {
 #ifdef DEBUG
 #ifdef WIN32
 #define DEBUG_PRINT debug_print
-static void debug_print(int a, char *format,...) {
-	if (a >= DEBUG_LEVEL) {
-		char buffer[1024];
-		va_list args;
-		errno = 0;
-		va_start (args, format);
-		apr_vsnprintf (buffer, sizeof(buffer), format, args);
-		ap_log_error (APLOG_MARK, APLOG_WARNING, STATUS_AND_SERVER, buffer);
-		va_end (args);
-	}
-}
+static void debug_print(int a, char *format,...);
 #else
 #define DEBUG_PRINT(a,...) \
 	if (a >= DEBUG_LEVEL) { \
