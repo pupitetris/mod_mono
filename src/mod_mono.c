@@ -46,7 +46,7 @@
 #include "mod_mono.h"
 #include "mono-io-portability.h"
 
-DEFINE_MODULE (mono_module);
+DEFINE_MODULE (mono);
 
 /* Configuration pool. Cleared on restart. */
 static apr_pool_t *pconf;
@@ -321,7 +321,7 @@ static void debug_print(int a, char *format,...) {
 		errno = 0;
 		va_start (args, format);
 		apr_vsnprintf (buffer, sizeof(buffer), format, args);
-		ap_log_error (APLOG_MARK, APLOG_WARNING, STATUS_AND_SERVER, buffer);
+		ap_log_error (APLOG_MARK, APLOG_DEBUG, STATUS_AND_SERVER, buffer);
 		va_end (args);
 	}
 }

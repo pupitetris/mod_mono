@@ -196,7 +196,11 @@ static char UNUSED *cmdNames [] = {
 };
 
 /* Module definition */
-#define DEFINE_MODULE(x) module AP_MODULE_DECLARE_DATA x
+#ifdef APLOG_USE_MODULE
+#define DEFINE_MODULE(x) APLOG_USE_MODULE(x)
+#else
+#define DEFINE_MODULE(x) module AP_MODULE_DECLARE_DATA x##_module
+#endif
 
 /* Directives */
 #define MAKE_CMD_ACCESS(name, function_name, description) \
