@@ -691,7 +691,7 @@ add_xsp_server (apr_pool_t *pool, const char *alias, module_cfg *config, int is_
 #else
 	/* (Obsolete) server->executable_path = get_mono_path(pool, EXECUTABLE_PATH, "/bin/mono.exe"); */
 	server->path = NULL;
-	server->server_path = get_mono_path(pool, MODMONO_SERVER_PATH, "/bin/mod-mono-server.bat");
+	server->server_path = get_mono_path(pool, MODMONO_SERVER_PATH, "\\bin\\mod-mono-server.bat");
 	server->listen_port = apr_psprintf (pool, "%d", atoi(LISTEN_PORT) + config->nservers);
 	apr_env_get(&server->wapidir, "TEMP", pool);
 #endif
@@ -1490,9 +1490,13 @@ get_directory (apr_pool_t *pool, const char *filepath)
 	char *sep;
 	char *result;
 
-	sep = strrchr ((char *) filepath, '/');
+	sep = strrchr ((char *) filepath, DIRECTORY_SEPARATOR_C);
+#ifdef WIN32	
 	if (sep == NULL || sep == filepath)
-		return "/";
+		sep = strrchr ((char *) filepath, DIRECTORY_SEPARATOR_2_C);
+#endif
+	if (sep == NULL || sep == filepath)
+		return DIRECTORY_SEPARATOR;
 
 	result = apr_pcalloc (pool, sep - filepath + 1);
 	strncpy (result, filepath, sep - filepath);
@@ -1698,7 +1702,7 @@ fork_mod_mono_server (apr_pool_t *pool, xsp_data *config)
 	if (config->path != NULL)
 		SETENV (pool, "MONO_PATH", config->path);
 	wapidir = apr_pcalloc (pool, strlen (config->wapidir) + 5 + 2);
-	sprintf (wapidir, "%s/%s", config->wapidir, ".wapi");
+	sprintf (wapidir, "%s" DIRECTORY_SEPARATOR "%s", config->wapidir, ".wapi");
 	apr_dir_make (wapidir, (APR_UREAD | APR_UWRITE | APR_UEXECUTE), pool);
 	if (chmod (wapidir, 0700) != 0 && (errno == EPERM || errno == EACCES)) {
 		ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,
@@ -1901,7 +1905,7 @@ fork_mod_mono_server (apr_pool_t *pool, xsp_data *config)
 	if (config->iomap && *config->iomap)
 		SETENV (pool, "MONO_IOMAP", config->iomap);
 
-	status = chdir ("/");
+	status = chdir (DIRECTORY_SEPARATOR);
 
 #if defined (APR_HAS_USER)
 	/*
@@ -1984,14 +1988,14 @@ fork_mod_mono_server (apr_pool_t *pool, xsp_data *config)
 	serverdir = get_directory (pool, server_path);
 	DEBUG_PRINT (1, "serverdir: %s", serverdir);
 	path = apr_pcalloc (pool, strlen (tmp) + strlen (serverdir) + 2);
-	sprintf (path, "%s:%s", serverdir, tmp);
+	sprintf (path, "%s" PATH_SEPARATOR "%s", serverdir, tmp);
 
 	DEBUG_PRINT (1, "PATH after: %s", path);
 	SETENV (pool, "PATH", path);
 	if (config->path != NULL)
 		SETENV (pool, "MONO_PATH", config->path);
 	wapidir = apr_pcalloc (pool, strlen (config->wapidir) + 5 + 2);
-	sprintf (wapidir, "%s/%s", config->wapidir, ".wapi");
+	sprintf (wapidir, "%s" DIRECTORY_SEPARATOR "%s", config->wapidir, ".wapi");
 	mkdir (wapidir, 0700);
 	if (chmod (wapidir, 0700) != 0 && (errno == EPERM || errno == EACCES)) {
 		ap_log_error (APLOG_MARK, APLOG_ERR, STATUS_AND_SERVER,

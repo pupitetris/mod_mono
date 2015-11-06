@@ -97,9 +97,13 @@ typedef unsigned __int32 mode_t;
 
 #ifdef WIN32
 #define DIRECTORY_SEPARATOR	"\\"
+#define DIRECTORY_SEPARATOR_2	"/"
+#define DIRECTORY_SEPARATOR_C	'\\'
+#define DIRECTORY_SEPARATOR_2_C	'/'
 #define PATH_SEPARATOR	";"
 #else
 #define DIRECTORY_SEPARATOR	"/"
+#define DIRECTORY_SEPARATOR_C	'/'
 #define PATH_SEPARATOR	":"
 #endif
 
@@ -116,7 +120,7 @@ typedef unsigned __int32 mode_t;
 #ifndef WIN32
 #define DASHBOARD_FILE		"/tmp/mod_mono_dashboard"
 #else
-#define DASHBOARD_FILE getenv ("TEMP"), "/mod_mono_dashboard"
+#define DASHBOARD_FILE getenv ("TEMP"), "\\mod_mono_dashboard"
 #define LISTEN_PORT		"2000"
 #endif
 
