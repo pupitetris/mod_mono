@@ -15,3 +15,5 @@ include/
 /ltmain.sh
 /missing
 /mod_mono.conf
+/Release
+/Debug
