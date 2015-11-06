@@ -1691,7 +1691,7 @@ fork_mod_mono_server (apr_pool_t *pool, xsp_data *config)
 	serverdir = get_directory (pool, config->server_path);
 	DEBUG_PRINT (1, "serverdir: %s", serverdir);
 	path = apr_pcalloc (pool, strlen (tmp) + strlen (serverdir) + 2);
-	sprintf (path, "%s" DIRECTORY_SEPARATOR "%s", serverdir, tmp);
+	sprintf (path, "%s" PATH_SEPARATOR "%s", serverdir, tmp);
 
 	DEBUG_PRINT (1, "PATH after: %s", path);
 	SETENV (pool, "PATH", path);

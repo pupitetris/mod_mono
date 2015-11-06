@@ -97,8 +97,10 @@ typedef unsigned __int32 mode_t;
 
 #ifdef WIN32
 #define DIRECTORY_SEPARATOR	"\\"
+#define PATH_SEPARATOR	";"
 #else
 #define DIRECTORY_SEPARATOR	"/"
+#define PATH_SEPARATOR	":"
 #endif
 
 #define MODMONO_SERVER_BASEPATH MONO_PREFIX "/bin/mod-mono-server"
