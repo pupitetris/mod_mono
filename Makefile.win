@@ -18,7 +18,7 @@
 #
 # For example;
 #
-#   nmake /f Makefile.win APACHEDIR=..\Apache2 MACHINE=X64 _mod_mono_r
+#   nmake /f Makefile.win APACHEDIR=..\Apache2 APACHEVER=APACHE24 MACHINE=X64 _mod_mono_r
 
 default: _mod_mono_r
 
@@ -174,8 +174,12 @@ ALL : "$(OUTDIR)\mod_mono.so"
 "$(OUTDIR)" :
     if not exist "$(OUTDIR)/$(NULL)" mkdir "$(OUTDIR)"
 
+!IF "$(DEBUG_LEVEL)" == ""
+DEBUG_LEVEL=0
+!ENDIF
+
 CPP=cl.exe
-CPP_PROJ=/nologo /MD /W3 /GX /Zi /Od /I "./include" /I "./src/win32" /I "$(APACHE_INCLUDE)" /I "$(APACHE_APR_INCLUDE)" /I "$(APACHE_APRUTIL_INCLUDE)" /D "DEBUG" /D "WIN32" /D "_WINDOWS" /D "$(APACHEVER)" /D "HAVE_CONFIG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\mod_mono_src" /FD /c 
+CPP_PROJ=/nologo /MD /W3 /EHsc /Zi /Od /I "./include" /I "./src/win32" /I "$(APACHE_INCLUDE)" /I "$(APACHE_APR_INCLUDE)" /I "$(APACHE_APRUTIL_INCLUDE)" /D "DEBUG" /D "DEBUG_LEVEL=$(DEBUG_LEVEL)" /D "WIN32" /D "_WINDOWS" /D "$(APACHEVER)" /D "HAVE_CONFIG_H" /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\mod_mono_src" /FD /c 
 !IF "$(APACHEVER)" == "APACHE22" || "$(APACHEVER)" == "APACHE24"
 CPP_PROJ=$(CPP_PROJ) /D "APACHE2"
 !ENDIF
@@ -222,6 +226,6 @@ SOURCE=.\src\mod_mono.c .\src\glib_compat.c .\src\mono-io-portability.c
 ".\include\mod_mono_config.h" : $(SOURCE) "$(INTDIR)"
 	if not exist "include" mkdir "include"
 	<<tempfile.bat 
-	@echo off 
+	@echo off
 	awk "{if ( $$1==\"AM_INIT_AUTOMAKE(mod_mono,\" ) print \"#define VERSION \\\"\" substr($$2, 0, length($$2)-2) \"\\\"\"; }" configure.in > ".\include\mod_mono_config.h"
 << 
