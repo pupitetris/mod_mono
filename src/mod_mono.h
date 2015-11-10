@@ -223,17 +223,12 @@ static char UNUSED *cmdNames [] = {
 
 /* Debugging */
 #ifdef DEBUG
-#ifdef WIN32
-#define DEBUG_PRINT debug_print
-static void debug_print(int a, char *format,...);
-#else
 #define DEBUG_PRINT(a,...) \
 	if (a >= DEBUG_LEVEL) { \
 		errno = 0; \
-		ap_log_error (APLOG_MARK, APLOG_WARNING, STATUS_AND_SERVER, \
+		ap_log_error (APLOG_MARK, APLOG_DEBUG, STATUS_AND_SERVER, \
 				__VA_ARGS__); \
 	}
-#endif /* WIN32 */
 #else
 #define DEBUG_PRINT dummy_print
 static void UNUSED
